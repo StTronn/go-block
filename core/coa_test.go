@@ -2,6 +2,8 @@ package core
 
 import (
 	"encoding/json"
+	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,18 +16,18 @@ const ledgerTransactionsJson = `
 			"type": "sell_something",
 			"lines": [{
 					"key": "sales_to_bank",
-					"account": "bank",
-					"amount": "{{sales_before_tax}} + {{tax_payable}}"
+					"account": "sales_to_bank",
+					"amount": "{{.sales_before_tax}} + {{.tax_payable}}"
 				},
 				{
-					"key": "income_from_sales_before_tax",
-					"account": "income-root/sales",
-					"amount": "{{sales_before_tax}}"
+					"key": "income-root",
+					"account": "income-root",
+					"amount": "{{.sales_before_tax}}"
 				},
 				{
 					"key": "tax_payable",
-					"account": "tax_payables",
-					"amount": "{{tax_payable}}"
+					"account": "tax_payable",
+					"amount": "{{.tax_payable}}"
 				}
 			]
 		}]
@@ -39,8 +41,8 @@ const ChartOfAccountsJson = `
 			"name": "sales_to_bank"
 		},
 		{
-			"key": "income_from_sales_before_tax",
-			"name": "income_from_sales_before_tax"
+			"key": "income-root",
+			"name": "income-root-bank"
 		},
 		{
 			"key": "tax_payable",
@@ -50,6 +52,34 @@ const ChartOfAccountsJson = `
 
 }
 `
+
+const transactionInput = `
+{
+  "type": "sell_something",
+  "ledger": {
+    "ik": "my-ledger-ik"
+  },
+  "parameters": {
+    "sales_before_tax": "1500"
+    "tax_payable": "300"
+  }
+}
+
+`
+
+func loadAccounts() {
+	chartOfAccounts := &ChartOfAccounts{}
+	err := json.Unmarshal([]byte(ChartOfAccountsJson), chartOfAccounts)
+
+	if err != nil {
+		fmt.Errorf("error parsing chart of accounts")
+	}
+
+	for _, account := range chartOfAccounts.Accounts {
+		CreateAccount(account.Key, account.Name)
+	}
+
+}
 
 func TestChartOfAccounts(t *testing.T) {
 	chartOfAccounts := &ChartOfAccounts{}
@@ -74,22 +104,29 @@ type Root struct {
 }
 
 func TestAddTransactionEntry(t *testing.T) {
+	loadAccounts()
+
 	root := &Root{}
 	err := json.Unmarshal([]byte(ledgerTransactionsJson), root)
 	assert.Nil(t, err)
 
-	// for _, tt := range root.Transactions.Types {
-	// 	params := map[string]string{
-	// 		"sales_before_tax": "10000",
-	// 		"tax_payable":      "500",
-	// 	}
-	// 	transaction := addTransactionEntry("entry-1", "ledger-1", tt.Type, tt.Lines, params)
-	// 	assert.Equal(t, len(transaction.entries), 2)
-	// 	assert.Equal(t, transaction.entries[0].account, "bank")
-	// 	assert.Equal(t, transaction.entries[1].account, "income-root/sales")
-	// 	assert.Equal(t, transaction.entries[2].account, "tax_paybles")
+	for _, tt := range root.Transactions.Types {
+		params := map[string]string{
+			"sales_before_tax": "10000",
+			"tax_payable":      "500",
+		}
+		assert.Equal(t, tt.Type, "sell_something")
+		transaction := CreateTransaction("entry-1", "ledger-1", tt.Type, tt.Lines, params)
+		assert.Equal(t, len(transaction.entries), 3)
+		assert.Equal(t, transaction.entries[0].account.Name, "sales_to_bank")
+		assert.Equal(t, transaction.entries[1].account.Name, "income-root-bank")
+		assert.Equal(t, transaction.entries[2].account.Name, "tax_payable")
 
-	// }
+		assert.Equal(t, transaction.entries[0].amount, big.NewInt(10500))
+		assert.Equal(t, transaction.entries[1].amount, big.NewInt(10000))
+		assert.Equal(t, transaction.entries[2].amount, big.NewInt(500))
+
+	}
 
 	// Further validation based on expected behavior of addTransactionEntry function
 }

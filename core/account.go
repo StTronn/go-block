@@ -42,7 +42,7 @@ func getLedgerEntries() {
 
 }
 
-func createEntryFromLedgerEntryType(line LedgerEntryType, params map[string]string) ([]Entries, error) {
+func createEntry(line LedgerEntryType, params map[string]string) ([]Entries, error) {
 	// Use text/template to evaluate the amount string
 	tmpl, err := template.New("amountCalc").Parse(line.Amount)
 	if err != nil {
@@ -55,10 +55,14 @@ func createEntryFromLedgerEntryType(line LedgerEntryType, params map[string]stri
 		return nil, err
 	}
 
-	// Convert string result to big.Int (for now assuming result is directly convertible)
-	// You may want to improve this to handle complex expressions
-	amount := new(big.Int)
-	amount, _ = amount.SetString(builder.String(), 10)
+	parts := strings.Split(builder.String(), "+") // Splitting by '+'
+	total := big.NewInt(0)
+	for _, part := range parts {
+		amount := new(big.Int)
+		trimmedPart := strings.TrimSpace(part)
+		amount, _ = amount.SetString(trimmedPart, 10)
+		total = total.Add(total, amount)
+	}
 
 	account, exists := AccountStore[line.AccountKey]
 	if !exists {
@@ -66,21 +70,18 @@ func createEntryFromLedgerEntryType(line LedgerEntryType, params map[string]stri
 	}
 
 	// Create Entries
-	// Direction and status can be inferred based on your system's logic
-	// For simplicity, I'm setting direction as debit and status as posted
-	// Adjust according to your needs
-	entry := NewEntry(account, amount, common.Debit, common.Posted) // Adjust `common.Debit` as per your need
+	entry := NewEntry(account, total, common.Debit, common.Posted) // Adjust `common.Debit` as per your need
 
 	return []Entries{*entry}, nil
 }
 
-func addTransactionEntry(ik string, ledgerIK string, entryType string, ledgerLines []LedgerEntryType, params map[string]string) *Transaction {
+func CreateTransaction(ik string, ledgerIK string, transactionType string, ledgerLines []LedgerEntryType, params map[string]string) *Transaction {
 	//we are ignoring ledgerIk for now
 
 	entriesList := []Entries{}
 
 	for _, line := range ledgerLines {
-		entries, err := createEntryFromLedgerEntryType(line, params)
+		entries, err := createEntry(line, params)
 		if err != nil {
 			fmt.Println("Error creating entries:", err)
 			continue
