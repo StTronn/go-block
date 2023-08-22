@@ -37,7 +37,7 @@ func TestNewTransaction(t *testing.T) {
 		direction: common.Credit,
 	}
 
-	transaction := newTransaction(entry1, entry2)
+	transaction := NewTransaction(entry1, entry2)
 	assert.NotNil(t, transaction)
 	assert.Equal(t, 2, len(transaction.entries))
 }

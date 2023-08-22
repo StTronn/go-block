@@ -60,11 +60,10 @@ const transactionInput = `
     "ik": "my-ledger-ik"
   },
   "parameters": {
-    "sales_before_tax": "1500"
-    "tax_payable": "300"
+    "sales_before_tax": "10000",
+    "tax_payable": "500"
   }
 }
-
 `
 
 func loadAccounts() {
@@ -116,7 +115,7 @@ func TestAddTransactionEntry(t *testing.T) {
 			"tax_payable":      "500",
 		}
 		assert.Equal(t, tt.Type, "sell_something")
-		transaction := CreateTransaction("entry-1", "ledger-1", tt.Type, tt.Lines, params)
+		transaction := CreateTransaction("entry-1", "ledger-1", tt.Type, tt.Entries, params)
 		assert.Equal(t, len(transaction.entries), 3)
 		assert.Equal(t, transaction.entries[0].account.Name, "sales_to_bank")
 		assert.Equal(t, transaction.entries[1].account.Name, "income-root-bank")
@@ -129,4 +128,44 @@ func TestAddTransactionEntry(t *testing.T) {
 	}
 
 	// Further validation based on expected behavior of addTransactionEntry function
+}
+
+func TestTransactionFromInput(t *testing.T) {
+	loadAccounts() // Ensure accounts are loaded
+
+	// Unmarshal transactionInput into TransactionInput struct
+	var input TransactionInput
+	err := json.Unmarshal([]byte(transactionInput), &input)
+	assert.Nil(t, err)
+
+	// Extracting transaction type and parameters
+	transactionType := input.Type
+	params := input.Parameters
+
+	// Ensure we got the right transaction type from the input
+	assert.Equal(t, transactionType, "sell_something")
+
+	// Load transaction lines based on the transaction type
+	root := &Root{}
+	err = json.Unmarshal([]byte(ledgerTransactionsJson), root)
+	assert.Nil(t, err)
+
+	// Find the correct transaction type from the loaded ledger transactions
+	var tt LedgerTransactionType
+	for _, transaction := range root.Transactions.Types {
+		if transaction.Type == transactionType {
+			tt = transaction
+			break
+		}
+	}
+
+	// Creating and validating the transaction
+	transaction := CreateTransaction("entry-from-input", "ledger-from-input", tt.Type, tt.Entries, params)
+	assert.Equal(t, len(transaction.entries), 3)
+	assert.Equal(t, transaction.entries[0].account.Name, "sales_to_bank")
+	assert.Equal(t, transaction.entries[1].account.Name, "income-root-bank")
+	assert.Equal(t, transaction.entries[2].account.Name, "tax_payable")
+	assert.Equal(t, transaction.entries[0].amount, big.NewInt(10500))
+	assert.Equal(t, transaction.entries[1].amount, big.NewInt(10000))
+	assert.Equal(t, transaction.entries[2].amount, big.NewInt(500))
 }
