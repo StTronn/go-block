@@ -6,3 +6,16 @@ const (
 )
 
 type Hash [HashLength]byte
+type Direction int
+
+const (
+	Debit Direction = iota
+	Credit
+)
+
+type Status int
+
+const (
+	Pending Status = iota
+	Posted
+)
