@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/json"
 	"fmt"
+	"ledger/common"
 	"math/big"
 	"testing"
 
@@ -17,17 +18,20 @@ const ledgerTransactionsJson = `
 			"lines": [{
 					"key": "sales_to_bank",
 					"account": "sales_to_bank",
-					"amount": "{{.sales_before_tax}} + {{.tax_payable}}"
+					"amount": "{{.sales_before_tax}} + {{.tax_payable}}",
+					"direction" : "Debit"
 				},
 				{
 					"key": "income-root",
 					"account": "income-root",
-					"amount": "{{.sales_before_tax}}"
+					"amount": "{{.sales_before_tax}}",
+					"direction" : "Credit"
 				},
 				{
 					"key": "tax_payable",
 					"account": "tax_payable",
-					"amount": "{{.tax_payable}}"
+					"amount": "{{.tax_payable}}",
+					"direction" : "Credit"
 				}
 			]
 		}]
@@ -94,6 +98,44 @@ func TestChartOfAccounts(t *testing.T) {
 
 }
 
+func TestCreateAccountWithChildren(t *testing.T) {
+
+	accountJSON := `{
+	"accounts": [{
+		"key": "parent",
+		"name": "Parent Account",
+		"children": ["child1", "child2"]
+	}]
+	}`
+
+	// Unmarshal the JSON into the AccountInput struct
+	chartOfAccounts := &ChartOfAccounts{}
+	err := json.Unmarshal([]byte(accountJSON), &chartOfAccounts)
+	assert.Nil(t, err)
+
+	// Create the account with its children
+	for _, account := range chartOfAccounts.Accounts {
+		account := CreateAccount(account.Key, account.Name, account.Children...)
+
+		// Validate that the parent account is correctly added to the store
+		assert.NotNil(t, AccountStore["parent"])
+		assert.Equal(t, "parent", AccountStore["parent"].Key)
+		assert.Equal(t, "Parent Account", AccountStore["parent"].Name)
+
+		// Validate that the children are correctly added to the store
+		assert.NotNil(t, AccountStore["parent/child1"])
+		assert.Equal(t, "parent/child1", AccountStore["parent/child1"].Key)
+
+		assert.NotNil(t, AccountStore["parent/child2"])
+		assert.Equal(t, "parent/child2", AccountStore["parent/child2"].Key)
+
+		// Validate that the children are correctly linked to the parent
+		assert.Equal(t, 2, len(account.Children))
+		assert.Equal(t, "parent/child1", account.Children[0].Key)
+		assert.Equal(t, "parent/child2", account.Children[1].Key)
+	}
+}
+
 type Transactions struct {
 	Types []LedgerTransactionType `json:"types"`
 }
@@ -117,13 +159,13 @@ func TestAddTransactionEntry(t *testing.T) {
 		assert.Equal(t, tt.Type, "sell_something")
 		transaction := CreateTransaction("entry-1", "ledger-1", tt.Type, tt.Entries, params)
 		assert.Equal(t, len(transaction.entries), 3)
-		assert.Equal(t, transaction.entries[0].account.Name, "sales_to_bank")
-		assert.Equal(t, transaction.entries[1].account.Name, "income-root-bank")
-		assert.Equal(t, transaction.entries[2].account.Name, "tax_payable")
+		assert.Equal(t, transaction.entries[0].Account.Name, "sales_to_bank")
+		assert.Equal(t, transaction.entries[1].Account.Name, "income-root-bank")
+		assert.Equal(t, transaction.entries[2].Account.Name, "tax_payable")
 
-		assert.Equal(t, transaction.entries[0].amount, big.NewInt(10500))
-		assert.Equal(t, transaction.entries[1].amount, big.NewInt(10000))
-		assert.Equal(t, transaction.entries[2].amount, big.NewInt(500))
+		assert.Equal(t, transaction.entries[0].Amount, big.NewInt(10500))
+		assert.Equal(t, transaction.entries[1].Amount, big.NewInt(10000))
+		assert.Equal(t, transaction.entries[2].Amount, big.NewInt(500))
 
 	}
 
@@ -162,10 +204,13 @@ func TestTransactionFromInput(t *testing.T) {
 	// Creating and validating the transaction
 	transaction := CreateTransaction("entry-from-input", "ledger-from-input", tt.Type, tt.Entries, params)
 	assert.Equal(t, len(transaction.entries), 3)
-	assert.Equal(t, transaction.entries[0].account.Name, "sales_to_bank")
-	assert.Equal(t, transaction.entries[1].account.Name, "income-root-bank")
-	assert.Equal(t, transaction.entries[2].account.Name, "tax_payable")
-	assert.Equal(t, transaction.entries[0].amount, big.NewInt(10500))
-	assert.Equal(t, transaction.entries[1].amount, big.NewInt(10000))
-	assert.Equal(t, transaction.entries[2].amount, big.NewInt(500))
+	assert.Equal(t, transaction.entries[0].Account.Name, "sales_to_bank")
+	assert.Equal(t, transaction.entries[1].Account.Name, "income-root-bank")
+	assert.Equal(t, transaction.entries[2].Account.Name, "tax_payable")
+	assert.Equal(t, transaction.entries[0].Amount, big.NewInt(10500))
+	assert.Equal(t, transaction.entries[1].Amount, big.NewInt(10000))
+	assert.Equal(t, transaction.entries[2].Amount, big.NewInt(500))
+	assert.Equal(t, transaction.entries[0].Direction, common.Debit)
+	assert.Equal(t, transaction.entries[1].Direction, common.Credit)
+	assert.Equal(t, transaction.entries[2].Direction, common.Credit)
 }

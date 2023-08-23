@@ -17,18 +17,18 @@ type Transaction struct {
 
 type Entries struct {
 	id        string
-	account   *Account
-	amount    *big.Int
-	direction common.Direction
+	Account   *Account
+	Amount    *big.Int
+	Direction common.Direction
 }
 
 // newEntries creates a new Entries with a unique id.
 func NewEntry(Account *Account, amount *big.Int, direction common.Direction, status common.Status) *Entries {
 	return &Entries{
 		id:        xid.New().String(),
-		account:   Account,
-		amount:    amount,
-		direction: direction,
+		Account:   Account,
+		Amount:    amount,
+		Direction: direction,
 	}
 }
 
@@ -41,9 +41,10 @@ func NewTransaction(entries ...Entries) *Transaction {
 }
 
 type LedgerEntryType struct {
-	Key        string `json:"key"`
-	AccountKey string `json:"account"`
-	Amount     string `json:"amount"` // This is a string because it appears to be a templated form
+	Key        string           `json:"key"`
+	AccountKey string           `json:"account"`
+	Amount     string           `json:"amount"` // This is a string because it appears to be a templated form
+	Direction  common.Direction `json:"direction"`
 }
 
 type LedgerTransactionType struct {
@@ -84,7 +85,7 @@ func createEntry(line LedgerEntryType, params map[string]string) ([]Entries, err
 	}
 
 	// Create Entries
-	entry := NewEntry(account, total, common.Debit, common.Posted) // Adjust `common.Debit` as per your need
+	entry := NewEntry(account, total, line.Direction, common.Posted) // Adjust `common.Debit` as per your need
 
 	return []Entries{*entry}, nil
 }

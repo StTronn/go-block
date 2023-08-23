@@ -17,24 +17,24 @@ func TestNewAccount(t *testing.T) {
 
 	entry := NewEntry(account, amount, common.Debit, common.Posted)
 	assert.NotNil(t, entry)
-	assert.Equal(t, "test-key", entry.account.Key)
-	assert.Equal(t, amount, entry.amount)
-	assert.Equal(t, common.Debit, entry.direction)
+	assert.Equal(t, "test-key", entry.Account.Key)
+	assert.Equal(t, amount, entry.Amount)
+	assert.Equal(t, common.Debit, entry.Direction)
 }
 
 func TestNewTransaction(t *testing.T) {
 	entry1 := Entries{
 		id:        "test-id-1",
-		account:   &Account{},
-		amount:    big.NewInt(1000),
-		direction: common.Debit,
+		Account:   &Account{},
+		Amount:    big.NewInt(1000),
+		Direction: common.Debit,
 	}
 
 	entry2 := Entries{
 		id:        "test-id-2",
-		account:   &Account{},
-		amount:    big.NewInt(500),
-		direction: common.Credit,
+		Account:   &Account{},
+		Amount:    big.NewInt(500),
+		Direction: common.Credit,
 	}
 
 	transaction := NewTransaction(entry1, entry2)
