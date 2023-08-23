@@ -79,7 +79,7 @@ func loadAccounts() {
 	}
 
 	for _, account := range chartOfAccounts.Accounts {
-		CreateAccount(account.Key, account.Name)
+		CreateAccount(account)
 	}
 
 }
@@ -90,7 +90,7 @@ func TestChartOfAccounts(t *testing.T) {
 	assert.Nil(t, err)
 
 	for _, account := range chartOfAccounts.Accounts {
-		CreateAccount(account.Key, account.Name)
+		CreateAccount(account)
 		assert.Equal(t, AccountStore[account.Key].Key, account.Key)
 		assert.Equal(t, AccountStore[account.Key].Name, account.Name)
 	}
@@ -115,7 +115,7 @@ func TestCreateAccountWithChildren(t *testing.T) {
 
 	// Create the account with its children
 	for _, account := range chartOfAccounts.Accounts {
-		account := CreateAccount(account.Key, account.Name, account.Children...)
+		account := CreateAccount(account)
 
 		// Validate that the parent account is correctly added to the store
 		assert.NotNil(t, AccountStore["parent"])

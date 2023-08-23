@@ -15,9 +15,10 @@ type Account struct {
 }
 
 type AccountType struct {
-	Key      string   `json:"key"`
-	Name     string   `json:"name,omitempty"`
-	Children []string `json:"children,omitempty"`
+	Key       string   `json:"key"`
+	Name      string   `json:"name,omitempty"`
+	Childrens []string `json:"children,omitempty"`
+	template  []string
 }
 
 type ChartOfAccounts struct {
@@ -29,22 +30,22 @@ type AccountsStore map[string]*Account
 
 var AccountStore = make(AccountsStore)
 
-func CreateAccount(key, name string, childrens ...string) *Account {
-	childrensAccount := make([]Account, len(childrens))
+func CreateAccount(accountType *AccountType) *Account {
+	childrensAccount := make([]Account, len(accountType.Childrens))
 
-	for i, children := range childrens {
-		fullKey := fmt.Sprintf("%s/%s", key, children)
+	for i, children := range accountType.Childrens {
+		fullKey := fmt.Sprintf("%s/%s", accountType.Key, children)
 		childrensAccount[i] = Account{Key: fullKey}
 		AccountStore[fullKey] = &childrensAccount[i]
 	}
 	fmt.Printf("size of AccountStore %v", len(AccountStore))
 
 	account := &Account{
-		Key:      key,
-		Name:     name,
+		Key:      accountType.Key,
+		Name:     accountType.Name,
 		Children: childrensAccount,
 	}
-	AccountStore[key] = account
+	AccountStore[account.Key] = account
 	return account
 
 }
