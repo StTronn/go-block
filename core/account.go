@@ -18,7 +18,7 @@ type AccountType struct {
 	Key       string   `json:"key"`
 	Name      string   `json:"name,omitempty"`
 	Childrens []string `json:"children,omitempty"`
-	template  []string
+	template  []bool   `json:"template,omitempty"`
 }
 
 type ChartOfAccounts struct {

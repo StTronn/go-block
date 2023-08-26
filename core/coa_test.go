@@ -38,6 +38,35 @@ const ledgerTransactionsJson = `
 	}
 }
 `
+
+const ledgerTransactionsJsonAccountVar = `
+{
+	"transactions": {
+		"types": [{
+			"type": "sell_something",
+			"lines": [{
+					"key": "sales_to_bank",
+					"account": "sales_to_bank",
+					"amount": "{{.sales_before_tax}} + {{.tax_payable}}",
+					"direction" : "Debit"
+				},
+				{
+					"key": "user_account",
+					"account": "{{.user_account}}",
+					"amount": "{{.sales_before_tax}}",
+					"direction" : "Credit"
+				},
+				{
+					"key": "tax_payable",
+					"account": "tax_payable",
+					"amount": "{{.tax_payable}}",
+					"direction" : "Credit"
+				}
+			]
+		}]
+	}
+}
+`
 const ChartOfAccountsJson = `
 {
 	"accounts": [{
@@ -51,6 +80,10 @@ const ChartOfAccountsJson = `
 		{
 			"key": "tax_payable",
 			"name": "tax_payable"
+		},
+		{
+			"key": "user123",
+			"name": "test_user_account"
 		}
 	]
 
@@ -65,7 +98,8 @@ const transactionInput = `
   },
   "parameters": {
     "sales_before_tax": "10000",
-    "tax_payable": "500"
+    "tax_payable": "500",
+		"user_account": "user123"
   }
 }
 `
@@ -94,7 +128,7 @@ func TestChartOfAccounts(t *testing.T) {
 		assert.Equal(t, AccountStore[account.Key].Key, account.Key)
 		assert.Equal(t, AccountStore[account.Key].Name, account.Name)
 	}
-	assert.Equal(t, len(AccountStore), 3)
+	assert.Equal(t, len(AccountStore), 4)
 
 }
 
@@ -137,7 +171,7 @@ func TestCreateAccountWithChildren(t *testing.T) {
 }
 
 type Transactions struct {
-	Types []LedgerTransactionType `json:"types"`
+	Types []LedgerTransactionTemplate `json:"types"`
 }
 
 type Root struct {
@@ -157,7 +191,7 @@ func TestAddTransactionEntry(t *testing.T) {
 			"tax_payable":      "500",
 		}
 		assert.Equal(t, tt.Type, "sell_something")
-		transaction := CreateTransaction("entry-1", "ledger-1", tt.Type, tt.Entries, params)
+		transaction := CreateTransaction("entry-1", "ledger-1", tt.Type, tt.LedgerEntriesTemplate, params)
 		assert.Equal(t, len(transaction.entries), 3)
 		assert.Equal(t, transaction.entries[0].Account.Name, "sales_to_bank")
 		assert.Equal(t, transaction.entries[1].Account.Name, "income-root-bank")
@@ -182,7 +216,7 @@ func TestTransactionFromInput(t *testing.T) {
 
 	// Extracting transaction type and parameters
 	transactionType := input.Type
-	params := input.Parameters
+	// params := input.Parameters
 
 	// Ensure we got the right transaction type from the input
 	assert.Equal(t, transactionType, "sell_something")
@@ -193,7 +227,7 @@ func TestTransactionFromInput(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Find the correct transaction type from the loaded ledger transactions
-	var tt LedgerTransactionType
+	var tt LedgerTransactionTemplate
 	for _, transaction := range root.Transactions.Types {
 		if transaction.Type == transactionType {
 			tt = transaction
@@ -202,10 +236,52 @@ func TestTransactionFromInput(t *testing.T) {
 	}
 
 	// Creating and validating the transaction
-	transaction := CreateTransaction("entry-from-input", "ledger-from-input", tt.Type, tt.Entries, params)
+	transaction := tt.CreateTransaction(input)
 	assert.Equal(t, len(transaction.entries), 3)
 	assert.Equal(t, transaction.entries[0].Account.Name, "sales_to_bank")
 	assert.Equal(t, transaction.entries[1].Account.Name, "income-root-bank")
+	assert.Equal(t, transaction.entries[2].Account.Name, "tax_payable")
+	assert.Equal(t, transaction.entries[0].Amount, big.NewInt(10500))
+	assert.Equal(t, transaction.entries[1].Amount, big.NewInt(10000))
+	assert.Equal(t, transaction.entries[2].Amount, big.NewInt(500))
+	assert.Equal(t, transaction.entries[0].Direction, common.Debit)
+	assert.Equal(t, transaction.entries[1].Direction, common.Credit)
+	assert.Equal(t, transaction.entries[2].Direction, common.Credit)
+}
+
+func TestTransactionWithTemplateAccount(t *testing.T) {
+	loadAccounts() // Ensure accounts are loaded
+
+	// Unmarshal transactionInput into TransactionInput struct
+	var input TransactionInput
+	err := json.Unmarshal([]byte(transactionInput), &input)
+	assert.Nil(t, err)
+
+	// Extracting transaction type and parameters
+	transactionType := input.Type
+
+	// Ensure we got the right transaction type from the input
+	assert.Equal(t, transactionType, "sell_something")
+
+	// Load transaction lines based on the transaction type
+	root := &Root{}
+	err = json.Unmarshal([]byte(ledgerTransactionsJsonAccountVar), root)
+	assert.Nil(t, err)
+
+	// Find the correct transaction type from the loaded ledger transactions
+	var tt LedgerTransactionTemplate
+	for _, transaction := range root.Transactions.Types {
+		if transaction.Type == transactionType {
+			tt = transaction
+			break
+		}
+	}
+
+	// Creating and validating the transaction
+	transaction := tt.CreateTransaction(input)
+	assert.Equal(t, len(transaction.entries), 3)
+	assert.Equal(t, transaction.entries[0].Account.Name, "sales_to_bank")
+	assert.Equal(t, transaction.entries[1].Account.Name, "test_user_account")
 	assert.Equal(t, transaction.entries[2].Account.Name, "tax_payable")
 	assert.Equal(t, transaction.entries[0].Amount, big.NewInt(10500))
 	assert.Equal(t, transaction.entries[1].Amount, big.NewInt(10000))
