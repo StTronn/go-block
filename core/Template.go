@@ -9,35 +9,35 @@ import (
 	"strings"
 )
 
-type LedgerEntryTemplate struct {
+type EntryTemplate struct {
 	Key        string           `json:"key"`
 	AccountKey string           `json:"account"`
 	Amount     string           `json:"amount"` // This is a string because it appears to be a templated form
 	Direction  common.Direction `json:"direction"`
 }
 
-type LedgerTransactionTemplate struct {
-	Type                  string                `json:"type"`
-	LedgerEntriesTemplate []LedgerEntryTemplate `json:"lines"`
+type TransactionTemplate struct {
+	Type                  string          `json:"type"`
+	LedgerEntriesTemplate []EntryTemplate `json:"lines"`
 }
 
-type LedgerEntries struct {
-	Types []LedgerTransactionTemplate `json:"types"`
+type TransactionsListTemplate struct {
+	Types []TransactionTemplate `json:"types"`
 }
 
-func UnmarshalLedgerEntryTemplate(ledgerEntryTemplateJson []byte) (*LedgerEntryTemplate, error) {
-	ledgerEntryTemplate := &LedgerEntryTemplate{}
-	err := json.Unmarshal([]byte(ledgerEntryTemplateJson), ledgerEntryTemplate)
-	return ledgerEntryTemplate, err
+type TransactionInput struct {
+	Type       string            `json:"type"`
+	Ledger     LedgerInfo        `json:"ledger"`
+	Parameters map[string]string `json:"parameters"`
 }
 
-func UnmarshalLedgerTransactionTemplate(ledgerTransactionTemplateJson []byte) (*LedgerTransactionTemplate, error) {
-	ledgerTransactionTemplate := &LedgerTransactionTemplate{}
-	err := json.Unmarshal([]byte(ledgerTransactionTemplateJson), ledgerTransactionTemplate)
-	return ledgerTransactionTemplate, err
+// TODO: maybeMoved to transaction or ledger.go in future
+type LedgerInfo struct {
+	IK      string `json:"ik"`
+	Version string `json:"version,omitempty"` // `omitempty` will ignore the field if it's empty when encoding to JSON
 }
 
-func (line LedgerEntryTemplate) createEntry(params map[string]string) ([]Entries, error) {
+func (line EntryTemplate) createEntry(params map[string]string) ([]Entries, error) {
 	// Use text/template to evaluate the amount string
 	tmpl, err := template.New("amountCalc").Parse(line.Amount)
 	if err != nil {
@@ -75,22 +75,7 @@ func (line LedgerEntryTemplate) createEntry(params map[string]string) ([]Entries
 	return []Entries{*entry}, nil
 }
 
-func parseTemplateField(templateStr string, params map[string]string) (string, error) {
-	tmpl, err := template.New("templateField").Parse(templateStr)
-	if err != nil {
-		return "", err
-	}
-
-	var builder strings.Builder
-	err = tmpl.Execute(&builder, params)
-	if err != nil {
-		return "", err
-	}
-
-	return builder.String(), nil
-}
-
-func CreateTransaction(ik string, ledgerIK string, transactionType string, ledgerLines []LedgerEntryTemplate, params map[string]string) *Transaction {
+func CreateTransaction(ik string, ledgerIK string, transactionType string, ledgerLines []EntryTemplate, params map[string]string) *Transaction {
 	//we are ignoring ledgerIk for now
 
 	entriesList := []Entries{}
@@ -118,7 +103,7 @@ func CreateTransaction(ik string, ledgerIK string, transactionType string, ledge
 	return &transaction
 }
 
-func (ledgertransaction LedgerTransactionTemplate) CreateTransaction(input TransactionInput) *Transaction {
+func (ledgertransaction TransactionTemplate) CreateTransaction(input TransactionInput) *Transaction {
 	ik := input.Ledger.IK
 
 	entriesList := []Entries{}
@@ -146,14 +131,66 @@ func (ledgertransaction LedgerTransactionTemplate) CreateTransaction(input Trans
 	return &transaction
 }
 
-type TransactionInput struct {
-	Type       string            `json:"type"`
-	Ledger     LedgerInfo        `json:"ledger"`
-	Parameters map[string]string `json:"parameters"`
+type AccountTemplate struct {
+	Key       string   `json:"key"`
+	Name      string   `json:"name,omitempty"`
+	Childrens []string `json:"children,omitempty"`
+	template  bool     `json:"template,omitempty"`
 }
 
-// TODO: maybeMoved to transaction or ledger.go in future
-type LedgerInfo struct {
-	IK      string `json:"ik"`
-	Version string `json:"version,omitempty"` // `omitempty` will ignore the field if it's empty when encoding to JSON
+type ChartOfAccounts struct {
+	Accounts []*AccountTemplate `json:"accounts"`
+}
+
+func (accountType *AccountTemplate) CreateAccount() *Account {
+	childrensAccount := make([]Account, len(accountType.Childrens))
+
+	for i, children := range accountType.Childrens {
+		fullKey := fmt.Sprintf("%s/%s", accountType.Key, children)
+		childrensAccount[i] = Account{Key: fullKey}
+		AccountStore[fullKey] = &childrensAccount[i]
+	}
+	fmt.Printf("size of AccountStore %v", len(AccountStore))
+
+	account := &Account{
+		Key:      accountType.Key,
+		Name:     accountType.Name,
+		Children: childrensAccount,
+	}
+	AccountStore[account.Key] = account
+	return account
+
+}
+
+func parseTemplateField(templateStr string, params map[string]string) (string, error) {
+	tmpl, err := template.New("templateField").Parse(templateStr)
+	if err != nil {
+		return "", err
+	}
+
+	var builder strings.Builder
+	err = tmpl.Execute(&builder, params)
+	if err != nil {
+		return "", err
+	}
+
+	return builder.String(), nil
+}
+
+func UnmarshalLedgerEntryTemplate(ledgerEntryTemplateJson []byte) (*EntryTemplate, error) {
+	ledgerEntryTemplate := &EntryTemplate{}
+	err := json.Unmarshal([]byte(ledgerEntryTemplateJson), ledgerEntryTemplate)
+	return ledgerEntryTemplate, err
+}
+
+func UnmarshalLedgerTransactionTemplate(ledgerTransactionTemplateJson []byte) (*TransactionTemplate, error) {
+	ledgerTransactionTemplate := &TransactionTemplate{}
+	err := json.Unmarshal([]byte(ledgerTransactionTemplateJson), ledgerTransactionTemplate)
+	return ledgerTransactionTemplate, err
+}
+
+func UnmarshalLedgerTransactionListTemplate(TransactionsListTemplateJson []byte) (*TransactionTemplate, error) {
+	TransactionsListTemplate := &TransactionTemplate{}
+	err := json.Unmarshal([]byte(TransactionsListTemplateJson), TransactionsListTemplate)
+	return TransactionsListTemplate, err
 }

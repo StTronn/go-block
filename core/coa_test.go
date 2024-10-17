@@ -113,7 +113,7 @@ func loadAccounts() {
 	}
 
 	for _, account := range chartOfAccounts.Accounts {
-		CreateAccount(account)
+		account.CreateAccount()
 	}
 
 }
@@ -124,7 +124,7 @@ func TestChartOfAccounts(t *testing.T) {
 	assert.Nil(t, err)
 
 	for _, account := range chartOfAccounts.Accounts {
-		CreateAccount(account)
+		account.CreateAccount()
 		assert.Equal(t, AccountStore[account.Key].Key, account.Key)
 		assert.Equal(t, AccountStore[account.Key].Name, account.Name)
 	}
@@ -148,8 +148,8 @@ func TestCreateAccountWithChildren(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Create the account with its children
-	for _, account := range chartOfAccounts.Accounts {
-		account := CreateAccount(account)
+	for _, accountTemplate := range chartOfAccounts.Accounts {
+		account := accountTemplate.CreateAccount()
 
 		// Validate that the parent account is correctly added to the store
 		assert.NotNil(t, AccountStore["parent"])
@@ -171,7 +171,7 @@ func TestCreateAccountWithChildren(t *testing.T) {
 }
 
 type Transactions struct {
-	Types []LedgerTransactionTemplate `json:"types"`
+	Types []TransactionTemplate `json:"types"`
 }
 
 type Root struct {
@@ -227,7 +227,7 @@ func TestTransactionFromInput(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Find the correct transaction type from the loaded ledger transactions
-	var tt LedgerTransactionTemplate
+	var tt TransactionTemplate
 	for _, transaction := range root.Transactions.Types {
 		if transaction.Type == transactionType {
 			tt = transaction
@@ -269,7 +269,7 @@ func TestTransactionWithTemplateAccount(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Find the correct transaction type from the loaded ledger transactions
-	var tt LedgerTransactionTemplate
+	var tt TransactionTemplate
 	for _, transaction := range root.Transactions.Types {
 		if transaction.Type == transactionType {
 			tt = transaction
